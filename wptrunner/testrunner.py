@@ -576,10 +576,8 @@ class ManagerGroup(object):
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.stop()
-        if self.test_queue is not None:
-            self.test_queue.__exit__()
 
-    def start(self, test_type, tests):
+    def run(self, test_type, tests):
         """Start all managers in the group"""
         self.logger.debug("Using %i processes" % self.size)
 
@@ -587,19 +585,20 @@ class ManagerGroup(object):
                                     test_type,
                                     tests,
                                     **self.test_source_kwargs)
-        test_queue = self.test_queue.__enter__()
-        for _ in range(self.size):
-            manager = TestRunnerManager(self.suite_name,
-                                        test_queue,
-                                        self.test_source_cls,
-                                        self.browser_cls,
-                                        self.browser_kwargs,
-                                        self.executor_cls,
-                                        self.executor_kwargs,
-                                        self.stop_flag,
-                                        self.pause_on_unexpected)
-            manager.start()
-            self.pool.add(manager)
+        with self.test_queue as test_queue:
+            for _ in range(self.size):
+                manager = TestRunnerManager(self.suite_name,
+                                            test_queue,
+                                            self.test_source_cls,
+                                            self.browser_cls,
+                                            self.browser_kwargs,
+                                            self.executor_cls,
+                                            self.executor_kwargs,
+                                            self.stop_flag,
+                                            self.pause_on_unexpected)
+                manager.start()
+                self.pool.add(manager)
+            self.wait()
 
     def is_alive(self):
         """Boolean indicating whether any manager in the group is still alive"""

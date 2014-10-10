@@ -705,12 +705,11 @@ def run_tests(config, tests_root, metadata_root, product, **kwargs):
                                       executor_kwargs,
                                       kwargs["pause_on_unexpected"]) as manager_group:
                         try:
-                            manager_group.start(test_type, test_loader.tests)
+                            manager_group.run(test_type, test_loader.tests)
                         except KeyboardInterrupt:
                             logger.critical("Main thread got signal")
                             manager_group.stop()
                             raise
-                        manager_group.wait()
                     unexpected_count += manager_group.unexpected_count()
 
                 unexpected_total += unexpected_count
