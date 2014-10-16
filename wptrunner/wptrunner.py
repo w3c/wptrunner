@@ -19,7 +19,7 @@ from abc import ABCMeta, abstractmethod
 from collections import defaultdict, OrderedDict
 from multiprocessing import Queue
 
-from mozlog.structured import commandline, stdadapter
+from mozlog.structured import commandline, stdadapter, get_default_logger, structuredlog, handlers, formatters
 
 import manifestexpected
 import manifestinclude
@@ -112,7 +112,12 @@ class TestEnvironment(object):
         self.config = self.load_config()
         serve.set_computed_defaults(self.config)
 
-        serve.logger = serve.default_logger("info")
+        serve.logger = get_default_logger("serve")
+        server_logger = structuredlog.StructuredLogger("wptserve")
+        handler = handlers.StreamHandler(open("server.log", "w"),
+                                         formatters.MachFormatter(disable_colors=True))
+        server_logger.add_handler(handler)
+        serve.wptserve.logger = server_logger
         self.external_config, self.servers = serve.start(self.config)
         return self
 
