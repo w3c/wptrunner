@@ -37,6 +37,7 @@ class ExpectedManifest(ManifestItem):
                      Should always be None since this should always be associated with
                      the root node of the AST.
         :param test_path: Path of the test file associated with this manifest.
+        :param url_base: Base url for serving the tests in this manifest
         """
         if name is not None:
             raise ValueError("ExpectedManifest should represent the root node")
@@ -149,6 +150,7 @@ def get_manifest(metadata_root, test_path, url_base, run_info):
 
     :param metadata_root: Absolute path to the root of the metadata directory
     :param test_path: Path to the test(s) relative to the test root
+    :param url_base: Base url for serving the tests in this manifest
     :param run_info: Dictionary of properties of the test run for which the expectation
                      values should be computed.
     """

@@ -55,6 +55,7 @@ class ExpectedManifest(ManifestItem):
         :param node: AST Node associated with this object. If this is None,
                      a new AST is created to associate with this manifest.
         :param test_path: Path of the test file associated with this manifest.
+        :param url_base: Base url for serving the tests in this manifest
         """
         if node is None:
             node = DataNode(None)
@@ -414,6 +415,7 @@ def get_manifest(metadata_root, test_path, url_base):
 
     :param metadata_root: Absolute path to the root of the metadata directory
     :param test_path: Path to the test(s) relative to the test root
+    :param url_base: Base url for serving the tests in this manifest
     """
     manifest_path = expected.expected_path(metadata_root, test_path)
     try:

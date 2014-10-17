@@ -108,13 +108,12 @@ def unexpected_changes(manifests, change_data, files_changed):
         if paths["url_base"] == "/":
             root_manifest = manifest
             break
-
-    if root_manifest is None:
+    else:
         return []
 
     rv = []
 
-    return [fn for fn, tests in manifest if fn in files_changed and change_data.get(fn) != "M"]
+    return [fn for fn, tests in root_manifest if fn in files_changed and change_data.get(fn) != "M"]
 
 # For each testrun
 # Load all files and scan for the suite_start entry
