@@ -16,7 +16,7 @@ manifest = None
 def do_delayed_imports():
     # This relies on an already loaded module having set the sys.path correctly :(
     global manifest
-    import manifest
+    from manifest import manifest
 
 class TestChunker(object):
     def __init__(self, total_chunks, chunk_number):
@@ -316,6 +316,7 @@ class TestLoader(object):
             expected = expected_file.get_test(manifest_test.id)
         else:
             expected = None
+
         return wpttest.from_manifest(manifest_test, expected)
 
     def load_expected_manifest(self, test_manifest, metadata_path, test_path):

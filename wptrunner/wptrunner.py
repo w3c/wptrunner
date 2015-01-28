@@ -4,6 +4,7 @@
 
 from __future__ import unicode_literals
 
+import imp
 import json
 import logging
 import os
@@ -67,21 +68,16 @@ def setup_stdlib_logger():
 
 
 def do_delayed_imports(serve_root):
-    global serve, manifest, sslutils
+    global serve, sslutils
 
     sys.path.insert(0, serve_root)
-    sys.path.insert(0, str(os.path.join(serve_root, "tools")))
-    sys.path.insert(0, str(os.path.join(serve_root, "tools", "scripts")))
+
     failed = []
 
     try:
-        import serve
+        from tools.serve import serve
     except ImportError:
         failed.append("serve")
-    try:
-        import manifest
-    except ImportError:
-        failed.append("manifest")
     try:
         import sslutils
     except ImportError:
@@ -437,7 +433,8 @@ def run_tests(config, serve_root, test_paths, product, **kwargs):
                         logger.test_end(test.id, status="SKIP")
 
                     executor_cls = executor_classes.get(test_type)
-                    executor_kwargs = get_executor_kwargs(base_server,
+                    executor_kwargs = get_executor_kwargs(test_type,
+                                                          base_server,
                                                           **kwargs)
 
                     if executor_cls is None:
@@ -487,16 +484,21 @@ def run_tests(config, serve_root, test_paths, product, **kwargs):
 
 def main():
     """Main entry point when calling from the command line"""
-    kwargs = wptcommandline.parse_args()
+    try:
+        kwargs = wptcommandline.parse_args()
 
-    if kwargs["prefs_root"] is None:
-        kwargs["prefs_root"] = os.path.abspath(os.path.join(here, "prefs"))
+        if kwargs["prefs_root"] is None:
+            kwargs["prefs_root"] = os.path.abspath(os.path.join(here, "prefs"))
 
-    setup_logging(kwargs, {"raw": sys.stdout})
+        setup_logging(kwargs, {"raw": sys.stdout})
 
-    if kwargs["list_test_groups"]:
-        list_test_groups(**kwargs)
-    elif kwargs["list_disabled"]:
-        list_disabled(**kwargs)
-    else:
-        return run_tests(**kwargs)
+        if kwargs["list_test_groups"]:
+            list_test_groups(**kwargs)
+        elif kwargs["list_disabled"]:
+            list_disabled(**kwargs)
+        else:
+            return run_tests(**kwargs)
+    except Exception:
+        import pdb, traceback
+        print traceback.format_exc()
+        pdb.post_mortem()

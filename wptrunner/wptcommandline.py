@@ -209,6 +209,9 @@ def get_test_paths(config):
 
 
 def exe_path(name):
+    if name is None:
+        return
+
     path = find_executable(name)
     if os.access(path, os.X_OK):
         return path
