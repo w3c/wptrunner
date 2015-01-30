@@ -78,6 +78,7 @@ def do_delayed_imports(serve_root):
         from tools.serve import serve
     except ImportError:
         failed.append("serve")
+
     try:
         import sslutils
     except ImportError:
