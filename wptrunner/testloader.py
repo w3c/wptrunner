@@ -12,11 +12,13 @@ import wpttest
 from mozlog import structured
 
 manifest = None
+manifest_update = None
 
 def do_delayed_imports():
     # This relies on an already loaded module having set the sys.path correctly :(
-    global manifest
+    global manifest, manifest_update
     from manifest import manifest
+    from manifest import update as manifest_update
 
 class TestChunker(object):
     def __init__(self, total_chunks, chunk_number):
@@ -254,10 +256,11 @@ class ManifestLoader(object):
         else:
             manifest_file = manifest.Manifest.from_json(json_data)
 
-        manifest.update(tests_path, url_base, manifest_file)
+        manifest_update.update(tests_path, url_base, manifest_file)
         manifest.write(manifest_file, manifest_path)
 
     def load_manifest(self, tests_path, metadata_path, url_base="/"):
+        print " ".join([tests_path, metadata_path, url_base])
         manifest_path = os.path.join(metadata_path, "MANIFEST.json")
         if (not os.path.exists(manifest_path) or
             self.force_manifest_update):

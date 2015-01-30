@@ -171,7 +171,8 @@ class ReftestTest(Test):
         self.references = references
 
     @classmethod
-    def from_manifest(cls, manifest_test, expected_metadata,
+    def from_manifest(cls, manifest_test,
+                      expected_metadata,
                       nodes=None,
                       references_seen=None):
 
@@ -204,14 +205,17 @@ class ReftestTest(Test):
                     # but A == B == A should not include the redundant B == A.
                     continue
 
+            references_seen.add(comparison_key)
+
             manifest_node = manifest_test.manifest.get_reference(ref_url)
             if manifest_node:
-                reference = ReftestTest.from_manifest(manifest_node, None,
-                                                      nodes, references_seen)
+                reference = ReftestTest.from_manifest(manifest_node,
+                                                      None,
+                                                      nodes,
+                                                      references_seen)
             else:
                 reference = ReftestTest(ref_url, None, [])
 
-            references_seen.add(comparison_key)
             node.references.append((reference, ref_type))
 
         return node

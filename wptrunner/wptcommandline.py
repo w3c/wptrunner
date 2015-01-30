@@ -56,9 +56,6 @@ def create_parser(product_choices=None):
                         help="Path to test files"),
     parser.add_argument("--prefs-root", dest="prefs_root", action="store", type=abs_path,
                         help="Path to the folder containing browser prefs"),
-    parser.add_argument("--serve-root", action="store", type=abs_path, dest="serve_root",
-                        help="Path to web-platform-tests checkout containing serve.py and manifest.py"
-                        " (defaults to test_root)")
     parser.add_argument("--run-info", action="store", type=abs_path,
                         help="Path to directory containing extra json files to add to run info")
     parser.add_argument("--config", action="store", type=abs_path, dest="config",
@@ -159,8 +156,7 @@ def set_from_config(kwargs):
     kwargs["config_path"] = config_path
     kwargs["config"] = config.read(kwargs["config_path"])
 
-    keys = {"paths": [("serve", "serve_root", True),
-                      ("prefs", "prefs_root", True),
+    keys = {"paths": [("prefs", "prefs_root", True),
                       ("run_info", "run_info", True)],
             "web-platform-tests": [("remote_url", "remote_url", False),
                                    ("branch", "branch", False),
@@ -238,13 +234,6 @@ def check_args(kwargs):
                 print "Fatal: %s path %s is not a directory" % (name, path)
                 sys.exit(1)
 
-    if kwargs["serve_root"] is None:
-        if "/" in kwargs["test_paths"]:
-            kwargs["serve_root"] = kwargs["test_paths"]["/"]["tests_path"]
-    else:
-        print >> sys.stderr, "Unable to determine server root path"
-        sys.exit(1)
-
     if kwargs["run_info"] is None:
         kwargs["run_info"] = kwargs["config_path"]
 
@@ -316,9 +305,6 @@ def create_parser_update():
                         help="Path to web-platform-tests"),
     parser.add_argument("--sync-path", action="store", type=abs_path,
                         help="Path to store git checkout of web-platform-tests during update"),
-    parser.add_argument("--serve-root", action="store", type=abs_path, dest="serve_root",
-                        help="Path to web-platform-tests checkout containing serve.py and manifest.py"
-                        " (defaults to test_root)")
     parser.add_argument("--remote_url", action="store",
                         help="URL of web-platfrom-tests repository to sync against"),
     parser.add_argument("--branch", action="store", type=abs_path,

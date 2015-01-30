@@ -108,7 +108,6 @@ class TestExecutor(object):
         if result is Stop:
             return result
 
-        print result
         if result[0].status == "ERROR":
             self.logger.debug(result[0].message)
         self.runner.send_message("test_ended", test, result)
@@ -151,6 +150,11 @@ class RefTestImplementation(object):
         # and the screenshot was taken from the cache so that we may
         # retrieve the screenshot from the cache directly in the future
         self.cache = executor.screenshot_cache
+        self.message = None
+
+    @property
+    def logger(self):
+        return self.executor.logger
 
     def get_hash(self, url, timeout):
         timeout = timeout * self.timeout_multiplier
@@ -166,63 +170,69 @@ class RefTestImplementation(object):
 
             self.cache[url] = (hash_value, None)
 
-            return True, (hash_value, screenshot)
+            rv = True, (hash_value, screenshot)
+        else:
+            rv = True, self.cache[url]
 
-        return True, self.hash_cache[url]
+        self.message.append("%s %s" % (url, rv[1][0]))
+        return rv
 
     def is_pass(self, lhs_hash, rhs_hash, relation):
         assert relation in ("==", "!=")
-        self.executor.logger.debug("Testing %s %s %s" %(lhs_hash, relation, rhs_hash))
+        self.message.append("Testing %s %s %s" % (lhs_hash, relation, rhs_hash))
         return ((relation == "==" and lhs_hash == rhs_hash) or
                 (relation == "!=" and lhs_hash != rhs_hash))
 
     def run_test(self, test):
-        success, data = self.get_hash(test.url, test.timeout)
-
-        if success is False:
-            return {"status":data[0], "message": data[1]}
-
-        lhs_node = test
-        lhs_hash, lhs_screenshot = data
+        self.message = []
 
         # Depth-first search of reference tree, with the goal
         # of reachings a leaf node with only pass results
 
-        stack = list(reversed(test.references))
+        stack = list(((test, item[0]), item[1]) for item in reversed(test.references))
         while stack:
-            rhs_node, relation = stack.pop()
-            success, data = self.get_hash(rhs_node.url, rhs_node.timeout)
+            hashes = [None, None]
+            screenshots = [None, None]
 
-            if success is False:
-                return {"status":data[0], "message": data[1]}
+            nodes, relation = stack.pop()
 
-            rhs_hash, rhs_screenshot = data
+            for i, node in enumerate(nodes):
+                success, data = self.get_hash(node.url, node.timeout)
+                if success is False:
+                    return {"status":data[0], "message": data[1]}
 
-            if self.is_pass(lhs_hash, rhs_hash, relation):
-                if rhs_node.references:
-                    stack.extend(list(reversed(rhs_node.references)))
+                hashes[i], screenshots[i] = data
+
+            if self.is_pass(hashes[0], hashes[1], relation):
+                if nodes[1].references:
+                    stack.extend(list(((nodes[1], item[0]), item[1]) for item in reversed(nodes[1].references)))
                 else:
                     # We passed
                     return {"status":"PASS", "message": None}
-            elif stack:
-                # Continue to the next option
-                lhs_node = rhs_node
-                lhs_hash = rhs_hash
-                lhs_screenshot = rhs_screenshot
 
-        if lhs_screenshot is None:
-            lhs_screenshot = self.retake_screenshot(lhs_node)
+        for i, (node, screenshot) in enumerate(zip(nodes, screenshots)):
+            if screenshot is None:
+                success, screenshot = self.retake_screenshot(node)
+                if success:
+                    screenshots[i] = screenshot
 
-        if rhs_screenshot is None:
-            rhs_success, rhs_screenshot = self.executor.screenshot(rhs_node.url,
-                                                                   rhs_node.timeout *
-                                                                   self.timeout_multiplier)
+        log_data = [{"url": nodes[0].url, "screenshot": screenshots[0]}, relation,
+                    {"url": nodes[1].url, "screenshot": screenshots[1]}]
 
-        log_data = [{"url": lhs_node.url, "screenshot": lhs_screenshot}, relation,
-                    {"url": rhs_node.url, "screenshot": rhs_screenshot}]
-
-        return {"status":"FAIL", "message": None,
+        return {"status": "FAIL",
+                "message": "\n".join(self.message),
                 "extra": {"reftest_screenshots": log_data}}
+
+    def retake_screenshot(self, node):
+        success, data = self.executor.screenshot(node.url,
+                                                       node.timeout *
+                                                       self.timeout_multiplier)
+        if not success:
+            return False, data
+
+        hash_val, _ = self.cache[node.url]
+        self.cache[node.url] = hash_val, data
+        return True, data
 
 class Protocol(object):
     def __init__(self, executor, browser, http_server_url):

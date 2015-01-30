@@ -232,7 +232,6 @@ class MarionetteRefTestExecutor(RefTestExecutor):
                              url, timeout).run()
 
     def _screenshot(self, marionette, url, timeout):
-        print "_screenshot start"
         full_url = urlparse.urljoin(self.http_server_url, url)
         try:
             marionette.navigate(full_url)
@@ -246,11 +245,5 @@ class MarionetteRefTestExecutor(RefTestExecutor):
         if screenshot.startswith("data:image/png;base64,"):
             screenshot = screenshot.split(",", 1)[1]
 
-        print "before navigate"
-        marionette.execute_script("window.location = 'data:image/png;base64,%s';" % screenshot)
-        print "after navigate"
-
-        time.sleep(3)
-        print "_screenshot end"
         return screenshot
         

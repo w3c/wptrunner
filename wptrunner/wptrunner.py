@@ -119,10 +119,9 @@ class LogLevelRewriter(object):
 
 
 class TestEnvironment(object):
-    def __init__(self, serve_path, test_paths, ssl_env, options):
+    def __init__(self, test_paths, ssl_env, options):
         """Context manager that owns the test environment i.e. the http and
         websockets servers"""
-        self.serve_path = serve_path
         self.test_paths = test_paths
         self.ssl_env = ssl_env
         self.server = None
@@ -152,7 +151,7 @@ class TestEnvironment(object):
                 server.kill()
 
     def load_config(self):
-        default_config_path = os.path.join(self.serve_path, "config.default.json")
+        default_config_path = os.path.join(serve_path(self.test_paths), "config.default.json")
         local_config_path = os.path.join(here, "config.json")
 
         with open(default_config_path) as f:
@@ -168,7 +167,7 @@ class TestEnvironment(object):
         local_config["ssl"]["encrypt_after_connect"] = self.options.get("encrypt_after_connect", False)
 
         config = serve.merge_json(default_config, local_config)
-        config["doc_root"] = self.serve_path
+        config["doc_root"] = serve_path(self.test_paths)
 
         if not self.ssl_env.ssl_enabled:
             config["ports"]["https"] = [None]
@@ -224,7 +223,7 @@ class TestEnvironment(object):
         logger.info("Placing required files in server environment.")
         for source, destination, copy_if_exists in self.required_files:
             source_path = os.path.join(here, source)
-            dest_path = os.path.join(self.serve_path, destination, os.path.split(source)[1])
+            dest_path = os.path.join(serve_path(self.test_paths), destination, os.path.split(source)[1])
             dest_exists = os.path.exists(dest_path)
             if not dest_exists or copy_if_exists:
                 if dest_exists:
@@ -304,9 +303,9 @@ class LoggingWrapper(StringIO):
     def flush(self):
         pass
 
-def list_test_groups(serve_root, test_paths, test_types, product, **kwargs):
+def list_test_groups(test_paths, test_types, product, **kwargs):
 
-    do_delayed_imports(serve_root)
+    do_delayed_imports(serve_path(test_paths))
 
     run_info = wpttest.get_run_info(kwargs["run_info"], product, debug=False)
     test_filter = testloader.TestFilter(include=kwargs["include"],
@@ -321,8 +320,8 @@ def list_test_groups(serve_root, test_paths, test_types, product, **kwargs):
         print item
 
 
-def list_disabled(serve_root, test_paths, test_types, product, **kwargs):
-    do_delayed_imports(serve_root)
+def list_disabled(test_paths, test_types, product, **kwargs):
+    do_delayed_imports(serve_path(test_paths))
     rv = []
     run_info = wpttest.get_run_info(kwargs["run_info"], product, debug=False)
     test_loader = testloader.TestLoader(test_paths,
@@ -347,8 +346,10 @@ def get_ssl_kwargs(**kwargs):
         args = {}
     return args
 
+def serve_path(test_paths):
+    return test_paths["/"]["tests_path"]
 
-def run_tests(config, serve_root, test_paths, product, **kwargs):
+def run_tests(config, test_paths, product, **kwargs):
     logging_queue = None
     logging_thread = None
     original_stdio = (sys.stdout, sys.stderr)
@@ -362,7 +363,7 @@ def run_tests(config, serve_root, test_paths, product, **kwargs):
             sys.stderr = LoggingWrapper(logging_queue, prefix="STDERR")
             logging_thread.start()
 
-        do_delayed_imports(serve_root)
+        do_delayed_imports(serve_path(test_paths))
 
         run_info = wpttest.get_run_info(kwargs["run_info"], product, debug=False)
 
@@ -403,8 +404,7 @@ def run_tests(config, serve_root, test_paths, product, **kwargs):
 
         logger.info("Using %i client processes" % kwargs["processes"])
 
-        with TestEnvironment(serve_root,
-                             test_paths,
+        with TestEnvironment(test_paths,
                              ssl_env,
                              env_options) as test_environment:
             try:
