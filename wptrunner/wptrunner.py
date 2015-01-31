@@ -190,9 +190,13 @@ class TestEnvironment(object):
         log_filter = LogLevelRewriter(log_filter, ["error"], "warning")
         server_logger.component_filter = log_filter
 
-        serve.logger = server_logger
-        #Set as the default logger for wptserve
-        serve.set_logger(server_logger)
+        try:
+            #Set as the default logger for wptserve
+            serve.set_logger(server_logger)
+            serve.logger = server_logger
+        except Exception:
+            # This happens if logging has already been set up for wptserve
+            pass
 
     def setup_routes(self):
         for url, paths in self.test_paths.iteritems():
@@ -478,6 +482,7 @@ def run_tests(config, test_paths, product, **kwargs):
             if logging_thread is not None:
                 logging_thread.join(10)
             logging_queue.close()
+            logger.info("queue closed")
 
     return unexpected_total == 0
 

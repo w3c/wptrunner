@@ -17,7 +17,8 @@ marionette = None
 
 here = os.path.join(os.path.split(__file__)[0])
 
-from .base import (Protocol,
+from .base import (ExecutorException,
+                   Protocol,
                    RefTestExecutor,
                    RefTestImplementation,
                    TestExecutor,
@@ -246,4 +247,3 @@ class MarionetteRefTestExecutor(RefTestExecutor):
             screenshot = screenshot.split(",", 1)[1]
 
         return screenshot
-        

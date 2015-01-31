@@ -260,7 +260,6 @@ class ManifestLoader(object):
         manifest.write(manifest_file, manifest_path)
 
     def load_manifest(self, tests_path, metadata_path, url_base="/"):
-        print " ".join([tests_path, metadata_path, url_base])
         manifest_path = os.path.join(metadata_path, "MANIFEST.json")
         if (not os.path.exists(manifest_path) or
             self.force_manifest_update):

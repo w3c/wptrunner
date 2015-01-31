@@ -53,6 +53,11 @@ def reftest_result_converter(self, test, result):
                             extra=result.get("extra")), [])
 
 
+class ExecutorException(Exception):
+    def __init__(self, status, message):
+        self.status = status
+        self.message = message
+
 class TestExecutor(object):
     __metaclass__ = ABCMeta
 
@@ -124,7 +129,7 @@ class TestExecutor(object):
             status = e.status
         else:
             status = "ERROR"
-            message = e.message + "\n" + traceback.format_exc(e)
+        message = e.message + "\n" + traceback.format_exc(e)
         return test.result_cls(status, message), []
 
 
