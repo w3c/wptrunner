@@ -107,7 +107,6 @@ class TestExecutor(object):
         try:
             result = self.do_test(test)
         except Exception as e:
-            self.logger.debug(traceback.format_exc(e))
             result = self.result_from_exception(test, e)
 
         if result is Stop:
@@ -123,13 +122,17 @@ class TestExecutor(object):
         specific test.
 
         :param test: The test to run."""
+        pass
 
     def result_from_exception(self, test, e):
         if hasattr(e, "status") and e.status in ReftestResult.statuses:
             status = e.status
         else:
             status = "ERROR"
-        message = e.message + "\n" + traceback.format_exc(e)
+        message = unicode(getattr(e, "message", ""))
+        if message:
+            message += "\n"
+        message += traceback.format_exc(e)
         return test.result_cls(status, message), []
 
 
@@ -230,8 +233,8 @@ class RefTestImplementation(object):
 
     def retake_screenshot(self, node):
         success, data = self.executor.screenshot(node.url,
-                                                       node.timeout *
-                                                       self.timeout_multiplier)
+                                                 node.timeout *
+                                                 self.timeout_multiplier)
         if not success:
             return False, data
 

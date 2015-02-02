@@ -116,8 +116,8 @@ class MarionetteProtocol(Protocol):
             "document.title = '%s'" % threading.current_thread().name.replace("'", '"'))
 
 class MarionetteRun(object):
-    def __init__(self, func, marionette, url, timeout):
-
+    def __init__(self, logger, func, marionette, url, timeout):
+        self.logger = logger
         self.result = None
         self.marionette = marionette
         self.func = func
@@ -155,7 +155,12 @@ class MarionetteRun(object):
             # and otherwise ignore any other result and set it to crash
             self.result = True, ("CRASH", None)
         except Exception as e:
-            self.result = False, ("ERROR", getattr(e, "message", None))
+            message = getattr(e, "message", "")
+            if message:
+                message += "\n"
+            message += traceback.format_exc(e)
+            self.result = False, ("ERROR", e)
+
         finally:
             self.result_flag.set()
 
@@ -173,8 +178,11 @@ class MarionetteTestharnessExecutor(TestharnessExecutor):
         return self.protocol.is_alive()
 
     def do_test(self, test):
-        success, data = MarionetteRun(self.do_testharness, self.protocol.marionette,
-                                      test.url, test.timeout * self.timeout_multiplier).run()
+        success, data = MarionetteRun(self.logger,
+                                      self.do_testharness,
+                                      self.protocol.marionette,
+                                      test.url,
+                                      test.timeout * self.timeout_multiplier).run()
         if success:
             return self.convert_result(test, data)
 
@@ -215,22 +223,27 @@ class MarionetteRefTestExecutor(RefTestExecutor):
         return self.protocol.is_alive()
 
     def do_test(self, test):
-        if not self.has_window:
-            self.protocol.marionette.execute_script(self.script)
-            self.protocol.marionette.switch_to_window(self.protocol.marionette.window_handles[-1])
-        result = self.implementation.run_test(test)
-
-        if self.close_after_done:
+        if self.close_after_done and self.has_window:
             self.protocol.marionette.close()
             self.protocol.marionette.switch_to_window(
                 self.protocol.marionette.window_handles[-1])
             self.has_window = False
 
+        if not self.has_window:
+            self.protocol.marionette.execute_script(self.script)
+            self.protocol.marionette.switch_to_window(self.protocol.marionette.window_handles[-1])
+            self.has_window = True
+
+        result = self.implementation.run_test(test)
+
         return self.convert_result(test, result)
 
     def screenshot(self, url, timeout):
-        return MarionetteRun(self._screenshot, self.protocol.marionette,
-                             url, timeout).run()
+        return MarionetteRun(self.logger,
+                             self._screenshot,
+                             self.protocol.marionette,
+                             url,
+                             timeout).run()
 
     def _screenshot(self, marionette, url, timeout):
         full_url = urlparse.urljoin(self.http_server_url, url)

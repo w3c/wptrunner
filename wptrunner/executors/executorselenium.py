@@ -137,7 +137,11 @@ class SeleniumRun(object):
         except (socket.timeout, exceptions.ErrorInResponseException):
             self.result = False, ("CRASH", None)
         except Exception as e:
-            self.result = False, ("ERROR", getattr(e, "message", None))
+            message = getattr(e, "message", "")
+            if message:
+                message += "\n"
+            message += traceback.format_exc(e)
+            self.result = False, ("ERROR", e)
         finally:
             self.result_flag.set()
 
@@ -198,18 +202,20 @@ class SeleniumRefTestExecutor(RefTestExecutor):
 
     def do_test(self, test):
         self.logger.info("Test requires OS-level window focus")
-        if not self.has_window:
-            self.protocol.webdriver.execute_script(self.script)
-            self.protocol.webdriver.switch_to_window(
-                self.protocol.webdriver.window_handles[-1])
 
-        result = self.implementation.run_test(test)
-
-        if self.close_after_done:
+        if self.close_after_done and self.has_window:
             self.protocol.webdriver.close()
             self.protocol.webdriver.switch_to_window(
                 self.protocol.webdriver.window_handles[-1])
             self.has_window = False
+
+        if not self.has_window:
+            self.protocol.webdriver.execute_script(self.script)
+            self.protocol.webdriver.switch_to_window(
+                self.protocol.webdriver.window_handles[-1])
+            self.has_window = True
+
+        result = self.implementation.run_test(test)
 
         return self.convert_result(test, result)
 
@@ -218,7 +224,6 @@ class SeleniumRefTestExecutor(RefTestExecutor):
                            url, timeout).run()
 
     def _screenshot(self, webdriver, url, timeout):
-        print "_screenshot"
         full_url = urlparse.urljoin(self.http_server_url, url)
         webdriver.get(full_url)
 

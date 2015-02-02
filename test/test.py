@@ -83,15 +83,28 @@ def run_tests(product, kwargs):
 def settings_to_argv(settings):
     rv = []
     for name, value in settings.iteritems():
-        rv.append("--%s" % name)
-        if value:
-            rv.append(value)
+        key = "--%s" % name
+        if not value:
+            rv.append(key)
+        elif isinstance(value, list):
+            for item in value:
+                rv.extend([key, item])
+        else:
+            rv.extend([key, value])
     return rv
+
+def set_from_args(settings, args):
+    if args.test:
+        settings["include"] = args.test
 
 def get_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument("-v", "--verbose", action="store_true", default=False,
                         help="verbose log output")
+    parser.add_argument("--product", action="append",
+                        help="Specific product to include in test run")
+    parser.add_argument("test", nargs="*", type=wptcommandline.slash_prefixed,
+                        help="Specific tests to include in test run")
     return parser
 
 def main():
@@ -108,10 +121,14 @@ def main():
     logger.suite_start(tests=[])
 
     for product, product_settings in config["products"].iteritems():
+        if args.product and product not in args.product:
+            continue
+
         settings = test_settings()
         settings.update(config["general"])
         settings.update(product_settings)
         settings["product"] = product
+        set_from_args(settings, args)
 
         kwargs = vars(parser.parse_args(settings_to_argv(settings)))
         wptcommandline.check_args(kwargs)
