@@ -308,31 +308,41 @@ class LoggingWrapper(StringIO):
     def flush(self):
         pass
 
-def list_test_groups(test_paths, test_types, product, **kwargs):
+def get_loader(test_paths, product, debug=False, **kwargs):
+    run_info = wpttest.get_run_info(kwargs["run_info"], product, debug=debug)
+
+    test_manifests = testloader.ManifestLoader(test_paths, force_manifest_update=False).load()
+
+    test_filter = testloader.TestFilter(include=kwargs["include"],
+                                        exclude=kwargs["exclude"],
+                                        manifest_path=kwargs["include_manifest"],
+                                        test_manifests=test_manifests)
+
+    test_loader = testloader.TestLoader(test_manifests,
+                                        kwargs["test_types"],
+                                        test_filter,
+                                        run_info)
+    return run_info, test_loader
+
+def list_test_groups(test_paths, product, **kwargs):
 
     do_delayed_imports(serve_path(test_paths))
 
-    run_info = wpttest.get_run_info(kwargs["run_info"], product, debug=False)
-    test_filter = testloader.TestFilter(include=kwargs["include"],
-                                        exclude=kwargs["exclude"],
-                                        manifest_path=kwargs["include_manifest"])
-    test_loader = testloader.TestLoader(test_paths,
-                                        test_types,
-                                        test_filter,
-                                        run_info)
+    run_info, test_loader = get_loader(test_paths, product,
+                                       force_manifest_update=False,
+                                       **kwargs)
 
     for item in sorted(test_loader.groups(test_types)):
         print item
 
 
-def list_disabled(test_paths, test_types, product, **kwargs):
+def list_disabled(test_paths, product, **kwargs):
     do_delayed_imports(serve_path(test_paths))
     rv = []
-    run_info = wpttest.get_run_info(kwargs["run_info"], product, debug=False)
-    test_loader = testloader.TestLoader(test_paths,
-                                        test_types,
-                                        testloader.TestFilter(),
-                                        run_info)
+
+    run_info, test_loader = get_loader(test_paths, test_types, product,
+                                       force_manifest_update=False,
+                                       **kwargs)
 
     for test_type, tests in test_loader.disabled_tests.iteritems():
         for test in tests:
@@ -370,8 +380,6 @@ def run_tests(config, test_paths, product, **kwargs):
 
         do_delayed_imports(serve_path(test_paths))
 
-        run_info = wpttest.get_run_info(kwargs["run_info"], product, debug=False)
-
         (check_args,
          browser_cls, get_browser_kwargs,
          executor_classes, get_executor_kwargs,
@@ -385,19 +393,12 @@ def run_tests(config, test_paths, product, **kwargs):
         unexpected_total = 0
 
         if "test_loader" in kwargs:
+            run_info = wpttest.get_run_info(kwargs["run_info"], product, debug=False)
             test_loader = kwargs["test_loader"]
         else:
-            test_filter = testloader.TestFilter(include=kwargs["include"],
-                                                exclude=kwargs["exclude"],
-                                                manifest_path=kwargs["include_manifest"])
-            test_loader = testloader.TestLoader(test_paths,
-                                                kwargs["test_types"],
-                                                test_filter,
-                                                run_info,
-                                                kwargs["chunk_type"],
-                                                kwargs["total_chunks"],
-                                                kwargs["this_chunk"],
-                                                kwargs["manifest_update"])
+            run_info, test_loader = get_loader(test_paths, product,
+                                               force_manifest_update=False,
+                                               **kwargs)
 
         if kwargs["run_by_dir"] is False:
             test_source_cls = testloader.SingleTestSource

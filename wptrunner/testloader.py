@@ -189,20 +189,22 @@ class EqualTimeChunker(TestChunker):
 
 
 class TestFilter(object):
-    def __init__(self, include=None, exclude=None, manifest_path=None):
+    def __init__(self, test_manifests, include=None, exclude=None, manifest_path=None):
+        test_manifests = test_manifests
+
         if manifest_path is not None and include is None:
             self.manifest = manifestinclude.get_manifest(manifest_path)
         else:
             self.manifest = manifestinclude.IncludeManifest.create()
 
-        if include is not None:
+        if include:
             self.manifest.set("skip", "true")
             for item in include:
-                self.manifest.add_include(item)
+                self.manifest.add_include(test_manifests, item)
 
-        if exclude is not None:
+        if exclude:
             for item in exclude:
-                self.manifest.add_exclude(item)
+                self.manifest.add_exclude(test_manifests, item)
 
     def __call__(self, manifest_iter):
         for test_path, tests in manifest_iter:
@@ -216,7 +218,6 @@ class TestFilter(object):
 
 
 class ManifestLoader(object):
-
     def __init__(self, test_paths, force_manifest_update=False):
         do_delayed_imports()
         self.test_paths = test_paths
@@ -275,7 +276,7 @@ class ManifestLoader(object):
 
 class TestLoader(object):
     def __init__(self,
-                 test_paths,
+                 test_manifests,
                  test_types,
                  test_filter,
                  run_info,
@@ -284,11 +285,10 @@ class TestLoader(object):
                  chunk_number=1,
                  force_manifest_update=False):
 
-        self.test_paths = test_paths
         self.test_types = test_types
         self.test_filter = test_filter
         self.run_info = run_info
-        self.manifests = ManifestLoader(test_paths, force_manifest_update).load()
+        self.manifests = test_manifests
         self.tests = None
         self.disabled_tests = None
 

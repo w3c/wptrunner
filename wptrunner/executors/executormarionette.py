@@ -134,19 +134,19 @@ class MarionetteRun(object):
             self.logger.error("Lost marionette connection before starting test")
             return Stop
 
-        executor = threading.Thread(target = self._run, args=(timeout,))
+        executor = threading.Thread(target = self._run)
         executor.start()
 
-        flag = self.result_flag.wait(timeout)
+        flag = self.result_flag.wait(timeout + 2 * extra_timeout)
         if self.result is None:
             assert not flag
             self.result = False, ("EXTERNAL-TIMEOUT", None)
 
         return self.result
 
-    def _run(self, timeout):
+    def _run(self):
         try:
-            self.result = True, self.func(self.marionette, self.url, timeout)
+            self.result = True, self.func(self.marionette, self.url, self.timeout)
         except marionette.errors.ScriptTimeoutException:
             self.result = False, ("EXTERNAL-TIMEOUT", None)
         except (socket.timeout, marionette.errors.InvalidResponseException, IOError):
@@ -192,12 +192,13 @@ class MarionetteTestharnessExecutor(TestharnessExecutor):
         if self.close_after_done:
             marionette.execute_script("if (window.wrappedJSObject.win) {window.wrappedJSObject.win.close()}")
 
-        return marionette.execute_async_script(
-            self.script % {"abs_url": urlparse.urljoin(self.http_server_url, url),
-                           "url": url,
-                           "window_id": self.window_id,
-                           "timeout_multiplier": self.timeout_multiplier,
-                           "timeout": timeout * 1000}, new_sandbox=False)
+        script = self.script % {"abs_url": urlparse.urljoin(self.http_server_url, url),
+                                "url": url,
+                                "window_id": self.window_id,
+                                "timeout_multiplier": self.timeout_multiplier,
+                                "timeout": timeout * 1000}
+
+        return marionette.execute_async_script(script, new_sandbox=False)
 
 
 class MarionetteRefTestExecutor(RefTestExecutor):

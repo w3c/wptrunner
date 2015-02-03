@@ -30,6 +30,7 @@ exceptions = None
 required_files = [("testharness_runner.html", "", False),
                   ("testharnessreport.js", "resources/", True)]
 
+extra_timeout = 5
 
 def do_delayed_imports():
     global webdriver
@@ -114,24 +115,24 @@ class SeleniumRun(object):
         timeout = self.timeout
 
         try:
-            self.webdriver.set_script_timeout((timeout + 5) * 1000)
+            self.webdriver.set_script_timeout((timeout + extra_timeout) * 1000)
         except exceptions.ErrorInResponseException:
             self.logger.error("Lost webdriver connection")
             return Stop
 
-        executor = threading.Thread(target=self._run, args=(timeout,))
+        executor = threading.Thread(target=self._run)
         executor.start()
 
-        flag = self.result_flag.wait(timeout)
+        flag = self.result_flag.wait(timeout + 2 * extra_timeout)
         if self.result is None:
             assert not flag
             self.result = False, ("EXTERNAL-TIMEOUT", None)
 
         return self.result
 
-    def _run(self, timeout):
+    def _run(self):
         try:
-            self.result = True, self.func(self.webdriver, self.url, timeout)
+            self.result = True, self.func(self.webdriver, self.url, self.timeout)
         except exceptions.TimeoutException:
             self.result = False, ("EXTERNAL-TIMEOUT", None)
         except (socket.timeout, exceptions.ErrorInResponseException):
