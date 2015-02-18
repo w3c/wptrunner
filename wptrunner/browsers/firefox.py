@@ -14,7 +14,7 @@ from mozcrash import mozcrash
 
 from .base import get_free_port, Browser, ExecutorBrowser, require_arg, cmd_arg
 from ..executors import executor_kwargs as base_executor_kwargs
-from ..executors.executormarionette import MarionetteTestharnessExecutor, MarionetteRefTestExecutor, required_files
+from ..executors.executormarionette import MarionetteTestharnessExecutor, MarionetteRefTestExecutor, MarionetteWebDriverExecutor, required_files
 
 here = os.path.join(os.path.split(__file__)[0])
 
@@ -22,7 +22,8 @@ __wptrunner__ = {"product": "firefox",
                  "check_args": "check_args",
                  "browser": "FirefoxBrowser",
                  "executor": {"testharness": "MarionetteTestharnessExecutor",
-                              "reftest": "MarionetteRefTestExecutor"},
+                              "reftest": "MarionetteRefTestExecutor",
+                              "wdspec": "MarionetteWebDriverExecutor"},
                  "browser_kwargs": "browser_kwargs",
                  "executor_kwargs": "executor_kwargs",
                  "env_options": "env_options"}
@@ -45,9 +46,12 @@ def browser_kwargs(**kwargs):
             "ca_certificate_path": kwargs["ssl_env"].ca_cert_path()}
 
 
-def executor_kwargs(test_type, http_server_url, **kwargs):
-    executor_kwargs = base_executor_kwargs(test_type, http_server_url, **kwargs)
+def executor_kwargs(test_type, wptserve_config, **kwargs):
+    executor_kwargs = base_executor_kwargs(test_type, wptserve_config, **kwargs)
     executor_kwargs["close_after_done"] = True
+    if test_type == "wdspec":
+        executor_kwargs["webdriver_binary"] = kwargs["webdriver_binary"]
+        executor_kwargs["wptserve_config"] = wptserve_config
     return executor_kwargs
 
 

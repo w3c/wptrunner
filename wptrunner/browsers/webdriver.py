@@ -3,10 +3,12 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import errno
+import os
 import socket
 import time
 import traceback
 import urlparse
+from abc import ABCMeta, abstractmethod
 
 import mozprocess
 
@@ -17,31 +19,42 @@ __all__ = ["SeleniumLocalServer", "ChromedriverLocalServer"]
 
 
 class LocalServer(object):
-    used_ports = set()
-    default_endpoint = "/"
+    __metaclass__ = ABCMeta
 
-    def __init__(self, logger, binary, port=None, endpoint=None):
+    used_ports = set()
+    path_prefix = "/"
+
+    def __init__(self, logger, binary, port=None, path_prefix=None):
         self.logger = logger
         self.binary = binary
         self.port = port
-        self.endpoint = endpoint or self.default_endpoint
+        if path_prefix is not None:
+            self.path_prefix = path_prefix
 
         if self.port is None:
             self.port = get_free_port(4444, exclude=self.used_ports)
         self.used_ports.add(self.port)
-        self.url = "http://127.0.0.1:%i%s" % (self.port, self.endpoint)
+        self.url = "http://127.0.0.1:%i%s" % (self.port, self.path_prefix)
 
-        self.proc, self.cmd = None, None
+        self.proc = None
+
+    @abstractmethod
+    def command(self):
+        pass
+
+    @property
+    def environ(self):
+        return os.environ.copy()
 
     def start(self):
-        self.proc = mozprocess.ProcessHandler(
-            self.cmd, processOutputLine=self.on_output)
+        self.logger.debug("Running %s" % " ".join(self.command))
+        self.proc = mozprocess.ProcessHandler(self.command, processOutputLine=self.on_output, env=self.environ)
         try:
             self.proc.run()
         except OSError as e:
             if e.errno == errno.ENOENT:
                 raise IOError(
-                    "chromedriver executable not found: %s" % self.binary)
+                    "webdriver executable not found: %s" % self.binary)
             raise
 
         self.logger.debug(
@@ -55,7 +68,7 @@ class LocalServer(object):
                 "Server was not accessible within the timeout:\n%s" % traceback.format_exc())
             raise
         else:
-            self.logger.info("Server listening on port %i" % self.port)
+            self.logger.info("Server running with pid %i listening on port %i" % (self.pid, self.port))
 
     def stop(self):
         if hasattr(self.proc, "proc"):
@@ -63,14 +76,13 @@ class LocalServer(object):
 
     def is_alive(self):
         if hasattr(self.proc, "proc"):
-            exitcode = self.proc.poll()
-            return exitcode is None
+            return self.proc.poll() is None
         return False
 
     def on_output(self, line):
         self.logger.process_output(self.pid,
                                    line.decode("utf8", "replace"),
-                                   command=" ".join(self.cmd))
+                                   command=" ".join(self.command))
 
     @property
     def pid(self):
@@ -79,13 +91,14 @@ class LocalServer(object):
 
 
 class SeleniumLocalServer(LocalServer):
-    default_endpoint = "/wd/hub"
+    path_prefix = "/wd/hub"
 
     def __init__(self, logger, binary, port=None):
         LocalServer.__init__(self, logger, binary, port=port)
-        self.cmd = ["java",
-                    "-jar", self.binary,
-                    "-port", str(self.port)]
+
+    @property
+    def command(self):
+        return ["java", "-jar", self.binary, "-port", str(self.port)]
 
     def start(self):
         self.logger.debug("Starting local Selenium server")
@@ -97,14 +110,17 @@ class SeleniumLocalServer(LocalServer):
 
 
 class ChromedriverLocalServer(LocalServer):
-    default_endpoint = "/wd/hub"
+    path_prefix = "/wd/hub"
 
-    def __init__(self, logger, binary="chromedriver", port=None, endpoint=None):
-        LocalServer.__init__(self, logger, binary, port=port, endpoint=endpoint)
+    def __init__(self, logger, binary="chromedriver", port=None, path_prefix=None):
+        LocalServer.__init__(self, logger, binary, port=port, path_prefix=path_prefix)
+
+    @property
+    def command(self):
         # TODO: verbose logging
-        self.cmd = [self.binary,
-                    cmd_arg("port", str(self.port)) if self.port else "",
-                    cmd_arg("url-base", self.endpoint) if self.endpoint else ""]
+        return [self.binary,
+                cmd_arg("port", str(self.port)) if self.port else "",
+                cmd_arg("url-base", self.path_prefix) if self.path_prefix else ""]
 
     def start(self):
         self.logger.debug("Starting local chromedriver server")
@@ -114,14 +130,25 @@ class ChromedriverLocalServer(LocalServer):
         LocalServer.stop(self)
         self.logger.info("chromedriver server stopped listening")
 
+class WiresLocalServer(LocalServer):
+    def __init__(self, logger, binary, marionette_port, port=None, path_prefix=None):
+        LocalServer.__init__(self, logger, binary, port=port, path_prefix=path_prefix)
+        self.marionette_port = marionette_port
 
-def wait_service(addr, timeout=15):
+    @property
+    def command(self):
+        return [self.binary,
+                cmd_arg("connect-existing"),
+                cmd_arg("webdriver-port", str(self.port)),
+                cmd_arg("marionette-port", str(self.marionette_port))]
+
+def wait_service(addr, timeout=60):
     """Waits until network service given as a tuple of (host, port) becomes
     available or the `timeout` duration is reached, at which point
     ``socket.error`` is raised."""
     end = time.time() + timeout
+    so = socket.socket()
     while end > time.time():
-        so = socket.socket()
         try:
             so.connect(addr)
         except socket.timeout:
@@ -129,9 +156,10 @@ def wait_service(addr, timeout=15):
         except socket.error as e:
             if e[0] != errno.ECONNREFUSED:
                 raise
+            time.sleep(0.5)
         else:
-            return True
-        finally:
+            so.shutdown(socket.SHUT_RDWR)
             so.close()
-        time.sleep(0.5)
+            return True
+
     raise socket.error("Service is unavailable: %s:%i" % addr)

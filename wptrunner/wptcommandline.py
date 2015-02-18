@@ -95,7 +95,7 @@ def create_parser(product_choices=None):
     test_selection_group = parser.add_argument_group("Test Selection")
     test_selection_group.add_argument("--test-types", action="store",
                                       nargs="*", default=["testharness", "reftest"],
-                                      choices=["testharness", "reftest"],
+                                      choices=["testharness", "reftest", "wdspec"],
                                       help="Test types to run")
     test_selection_group.add_argument("--include", action="append", type=slash_prefixed,
                                       help="URL prefix to include")

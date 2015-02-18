@@ -13,6 +13,8 @@ import urlparse
 import uuid
 from collections import defaultdict
 
+from mozprocess import ProcessHandler
+
 marionette = None
 
 here = os.path.join(os.path.split(__file__)[0])
@@ -25,6 +27,9 @@ from .base import (ExecutorException,
                    TestharnessExecutor,
                    testharness_result_converter,
                    reftest_result_converter)
+from .executorwebdriver import WebDriverTestExecutor
+
+from ..browsers.webdriver import WiresLocalServer
 from ..testrunner import Stop
 
 # Extra timeout to use after internal test timeout at which the harness
@@ -299,3 +304,47 @@ class MarionetteRefTestExecutor(RefTestExecutor):
             screenshot = screenshot.split(",", 1)[1]
 
         return screenshot
+
+class MarionetteWebDriverExecutor(WebDriverTestExecutor):
+    def __init__(self, browser, http_server_url, timeout_multiplier=1, close_after_done=True,
+                 debug_args=None, webdriver_binary=None, wptserve_config=None):
+        """Marionette-based executor for testharness.js tests"""
+        WebDriverTestExecutor.__init__(self, browser, http_server_url,
+                                       timeout_multiplier=timeout_multiplier,
+                                       debug_args=debug_args)
+
+        self.webdriver_binary = webdriver_binary
+        self.marionette_port = browser.marionette_port
+        self.command = [self.webdriver_binary, "--connect-existing",
+                        "--marionette-port", str(browser.marionette_port)]
+
+        self.config = {"webdriver":{"host": "127.0.0.1"},
+                       "server": wptserve_config.copy()}
+        self.driver = None
+
+
+    def setup(self, runner):
+        WebDriverTestExecutor.setup(self, runner)
+        # This can't be inited earlier because the logger isn't set
+        self.driver = WiresLocalServer(self.logger, self.webdriver_binary, self.marionette_port)
+
+        self.config["webdriver"]["path_prefix"] = self.driver.path_prefix
+        self.config["webdriver"]["port"] = self.driver.port
+
+        try:
+            self.driver.start()
+        except Exception as e:
+            self.logger.error(traceback.format_exc(e))
+            self.runner.send_message("init_failed")
+        else:
+            self.logger.info("Webdriver started")
+            self.runner.send_message("init_succeeded")
+
+    def teardown(self):
+        self.logger.debug("MarionetteWebDriverExecutor teardown")
+        if self.driver is not None:
+            self.driver.stop()
+        WebDriverTestExecutor.teardown(self)
+
+    def is_alive(self):
+        return self.driver.is_alive()

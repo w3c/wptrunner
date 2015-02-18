@@ -104,6 +104,7 @@ class TestRunner(object):
 
     def run_test(self):
         if not self.executor.is_alive():
+            self.logger.info("Executor is not alive, restarting")
             self.send_message("restart_runner")
             return
         try:
@@ -457,6 +458,7 @@ class TestRunnerManager(threading.Thread):
             self.cleanup()
 
     def start_next_test(self):
+        self.logger.debug("start_next_test")
         self.send_message("run_test")
 
     def requeue_test(self):

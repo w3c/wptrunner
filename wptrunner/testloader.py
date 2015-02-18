@@ -313,13 +313,13 @@ class TestLoader(object):
                     self._test_ids += [item.id for item in test_dict[test_type]]
         return self._test_ids
 
-    def get_test(self, manifest_test, expected_file):
+    def get_test(self, test_root, manifest_test, expected_file):
         if expected_file is not None:
             expected = expected_file.get_test(manifest_test.id)
         else:
             expected = None
 
-        return wpttest.from_manifest(manifest_test, expected)
+        return wpttest.from_manifest(test_root, manifest_test, expected)
 
     def load_expected_manifest(self, test_manifest, metadata_path, test_path):
         return manifestexpected.get_manifest(metadata_path, test_path, test_manifest.url_base, self.run_info)
@@ -335,11 +335,12 @@ class TestLoader(object):
 
         for test_path, tests in manifest_items:
             manifest_file = iter(tests).next().manifest
+            test_root = self.manifests[manifest_file]["tests_path"]
             metadata_path = self.manifests[manifest_file]["metadata_path"]
             expected_file = self.load_expected_manifest(manifest_file, metadata_path, test_path)
 
             for manifest_test in tests:
-                test = self.get_test(manifest_test, expected_file)
+                test = self.get_test(test_root, manifest_test, expected_file)
                 test_type = manifest_test.item_type
                 yield test_path, test_type, test
 

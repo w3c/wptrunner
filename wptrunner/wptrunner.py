@@ -420,8 +420,6 @@ def run_tests(config, test_paths, product, **kwargs):
                 raise
 
             browser_kwargs = get_browser_kwargs(ssl_env=ssl_env, **kwargs)
-            base_server = "http://%s:%i" % (test_environment.external_config["host"],
-                                            test_environment.external_config["ports"]["http"][0])
 
             repeat = kwargs["repeat"]
             for repeat_count in xrange(repeat):
@@ -440,7 +438,7 @@ def run_tests(config, test_paths, product, **kwargs):
 
                     executor_cls = executor_classes.get(test_type)
                     executor_kwargs = get_executor_kwargs(test_type,
-                                                          base_server,
+                                                          test_environment.external_config,
                                                           **kwargs)
 
                     if executor_cls is None:

@@ -18,6 +18,7 @@ from marionette.wait import Wait
 from mozprofile import FirefoxProfile, Preferences
 
 from .base import get_free_port, BrowserError, Browser, ExecutorBrowser
+from ..executors import executor_kwargs as base_executor_kwargs
 from ..executors.executormarionette import MarionetteTestharnessExecutor, required_files
 from ..hosts import HostsFile, HostsLine
 
@@ -41,14 +42,14 @@ def browser_kwargs(test_environment, **kwargs):
             "no_backup": kwargs.get("b2g_no_backup", False)}
 
 
-def executor_kwargs(http_server_url, **kwargs):
-    timeout_multiplier = kwargs["timeout_multiplier"]
-    if timeout_multiplier is None:
-        timeout_multiplier = 2
+def executor_kwargs(test_type, wptserve_config, **kwargs):
+    executor_kwargs = base_executor_kwargs(test_type, wptserve_config, **kwargs)
 
-    executor_kwargs = {"http_server_url": http_server_url,
-                       "timeout_multiplier": timeout_multiplier,
-                       "close_after_done": False}
+    if timeout_multiplier is None:
+        executor_kwargs["timeout_multiplier"] = 2
+
+    executor_kwargs["close_after_done"] = False
+
     return executor_kwargs
 
 

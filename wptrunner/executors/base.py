@@ -15,10 +15,13 @@ here = os.path.split(__file__)[0]
 
 cache_manager = Manager()
 
-def executor_kwargs(test_type, http_server_url, **kwargs):
+def executor_kwargs(test_type, wptserve_config, **kwargs):
     timeout_multiplier = kwargs["timeout_multiplier"]
     if timeout_multiplier is None:
         timeout_multiplier = 1
+
+    http_server_url = "http://%s:%i" % (wptserve_config["host"],
+                                        wptserve_config["ports"]["http"][0])
 
     executor_kwargs = {"http_server_url": http_server_url,
                        "timeout_multiplier": timeout_multiplier,
@@ -123,7 +126,7 @@ class TestExecutor(object):
 
     @abstractmethod
     def do_test(self, test):
-        """Test-type and protocol specific implmentation of running a
+        """Test-type and protocol specific implementation of running a
         specific test.
 
         :param test: The test to run."""

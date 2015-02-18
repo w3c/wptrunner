@@ -44,6 +44,11 @@ class TestharnessSubtestResult(SubtestResult):
     default_expected = "PASS"
     statuses = set(["PASS", "FAIL", "TIMEOUT", "NOTRUN"])
 
+class WebDriverResult(TestharnessResult):
+    pass
+
+class WebDriverSubtestResult(TestharnessSubtestResult):
+    statuses = set(["PASS", "FAIL", "TIMEOUT", "ERROR", "NOTRUN"])
 
 def get_run_info(metadata_root, product, **kwargs):
     if product == "b2g":
@@ -83,22 +88,24 @@ class Test(object):
     result_cls = None
     subtest_result_cls = None
 
-    def __init__(self, url, expected_metadata, timeout=DEFAULT_TIMEOUT, path=None):
+    def __init__(self, url, expected_metadata, test_root, path, timeout=DEFAULT_TIMEOUT):
         self.url = url
         self._expected_metadata = expected_metadata
         self.timeout = timeout
+        self.test_root = test_root
         self.path = path
 
     def __eq__(self, other):
         return self.id == other.id
 
     @classmethod
-    def from_manifest(cls, manifest_item, expected_metadata):
+    def from_manifest(cls, test_root, manifest_item, expected_metadata):
         timeout = LONG_TIMEOUT if manifest_item.timeout == "long" else DEFAULT_TIMEOUT
         return cls(manifest_item.url,
                    expected_metadata,
-                   timeout=timeout,
-                   path=manifest_item.path)
+                   test_root,
+                   manifest_item.path,
+                   timeout=timeout)
 
 
     @property
@@ -160,7 +167,7 @@ class ManualTest(Test):
 class ReftestTest(Test):
     result_cls = ReftestResult
 
-    def __init__(self, url, expected, references, timeout=DEFAULT_TIMEOUT, path=None):
+    def __init__(self, url, expected, references, test_root, path, timeout=DEFAULT_TIMEOUT):
         self.url = url
         for _, ref_type in references:
             if ref_type not in ("==", "!="):
@@ -171,7 +178,9 @@ class ReftestTest(Test):
         self.references = references
 
     @classmethod
-    def from_manifest(cls, manifest_test,
+    def from_manifest(cls,
+                      test_root,
+                      manifest_test,
                       expected_metadata,
                       nodes=None,
                       references_seen=None):
@@ -187,9 +196,10 @@ class ReftestTest(Test):
 
         node = cls(manifest_test.url,
                    expected_metadata,
+                   test_root,
+                   manifest_test.path,
                    [],
-                   timeout=timeout,
-                   path=manifest_test.path)
+                   timeout=timeout)
 
         nodes[url] = node
 
@@ -209,12 +219,13 @@ class ReftestTest(Test):
 
             manifest_node = manifest_test.manifest.get_reference(ref_url)
             if manifest_node:
-                reference = ReftestTest.from_manifest(manifest_node,
+                reference = ReftestTest.from_manifest(test_root,
+                                                      manifest_node,
                                                       None,
                                                       nodes,
                                                       references_seen)
             else:
-                reference = ReftestTest(ref_url, None, [])
+                reference = ReftestTest(ref_url, None, test_root, manifest_node.path, [])
 
             node.references.append((reference, ref_type))
 
@@ -229,12 +240,30 @@ class ReftestTest(Test):
         return ("reftype", "refurl")
 
 
+class WebDriverSpecTest(Test):
+    result_cls = WebDriverResult
+    subtest_result_cls = WebDriverSubtestResult
+
+    @classmethod
+    def from_manifest(cls, test_root, manifest_item, expected_metadata):
+        return cls(manifest_item.url,
+                   expected_metadata,
+                   test_root,
+                   manifest_item.path,
+                   timeout=DEFAULT_TIMEOUT)
+
+    @property
+    def id(self):
+        return self.url
+
+
 manifest_test_cls = {"reftest": ReftestTest,
                      "testharness": TestharnessTest,
+                     "wdspec": WebDriverSpecTest,
                      "manual": ManualTest}
 
 
-def from_manifest(manifest_test, expected_metadata):
+def from_manifest(test_root, manifest_test, expected_metadata):
     test_cls = manifest_test_cls[manifest_test.item_type]
 
-    return test_cls.from_manifest(manifest_test, expected_metadata)
+    return test_cls.from_manifest(test_root, manifest_test, expected_metadata)
