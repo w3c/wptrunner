@@ -6,6 +6,7 @@ import inspect
 import os
 import sys
 import socket
+import threading
 import time
 import traceback
 
@@ -65,11 +66,10 @@ class WebDriverTestExecutor(TestExecutor):
             if test_class_name in environ:
                 test_class = environ[test_class_name]
                 try:
-                    with TestRunner(test_class, self.config) as runner:
-                        subtest_results = runner.run_all()
-                        rv = {"status": "OK",
-                              "message": None,
-                              "tests": subtest_results}
+                    with TestRunner(self.logger, test, test_class, self.config) as runner:
+                        harness_result, subtest_results = runner.run_all()
+                        rv = harness_result
+                        rv["tests"] = subtest_results
                 except Exception as e:
                     rv = {"status":"ERROR",
                           "message": traceback.format_exc(e),
@@ -79,13 +79,23 @@ class WebDriverTestExecutor(TestExecutor):
                       "message": "Test class %s not found:\n%r" % (test_class, environ.keys()),
                       "tests": []}
 
+        if not self.is_alive:
+            rv["status"] = "CRASH"
+
         return self.convert_result(test, rv)
 
+    def is_alive(self):
+        return True
 
 #TODO: impose a timeout on each test
 class TestRunner(object):
-    def __init__(self, test_class, config):
+    def __init__(self, logger, test, test_class, config):
+        self.logger = logger
         self.test_obj = test_class(config)
+        self.test = test
+        self.timeout = test.timeout
+        self.result = None
+        self.result_flag = threading.Event()
 
     def __enter__(self):
         if hasattr(self.test_obj, "setup"):
@@ -95,7 +105,11 @@ class TestRunner(object):
     def __exit__(self, *args, **kwargs):
         #TODO: Error handling
         if hasattr(self.test_obj, "teardown"):
-            self.test_obj.teardown()
+            try:
+                self.test_obj.teardown()
+            except Exception as e:
+                self.logger.warning("Exception during teardown:\n%s" %
+                                    traceback.format_exc(e))
 
     @property
     def test_methods(self):
@@ -105,22 +119,44 @@ class TestRunner(object):
         return inspect.getmembers(self.test_obj, is_test_method)
 
     def run_all(self):
-        return [self.run_test(name, method) for name, method in self.test_methods]
+        executor = threading.Thread(target=self._do_run)
+        executor.start()
+        flag = self.result_flag.wait(self.timeout)
+        #We don't have a way to kill the test thread, unfortunately
+        if self.result is None:
+            self.result = {"status":"TIMEOUT",
+                           "message": None}, []
+        return self.result
 
+    def _do_run(self):
+        results = []
+        try:
+            for name, method in self.test_methods:
+                results.append(self.run_test(name, method))
+                if self.result is not None:
+                    break
+        except Exception as e:
+            self.result = {"status":"ERROR",
+                           "message": traceback.format_exc(e)}, results
+        else:
+            self.result = {"status":"OK", "message":None}, results
+        finally:
+            self.result_flag.set()
 
     def run_test(self, name, method):
+        result = {"name": name,
+                  "status": None,
+                  "message": None}
         try:
-            method()
+            if not self.test.disabled(method):
+                method()
+                result["status"] = "PASS"
+            else:
+                result["status"] = "SKIP"
         except AssertionError as e:
-            result = {"name": name,
-                      "status":"FAIL",
-                      "message": getattr(e, "message")}
+            result["status"] = "FAIL"
+            result["message"] = getattr(e, "message")
         except Exception as e:
-            result = {"name": name,
-                      "status":"ERROR",
-                      "message": traceback.format_exc(e)}
-        else:
-            result = {"name": name,
-                      "status":"PASS",
-                      "message": None}
+            result["status"] = "ERROR"
+            result["message"] = traceback.format_exc(e)
         return result
