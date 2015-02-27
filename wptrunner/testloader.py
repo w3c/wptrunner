@@ -252,10 +252,14 @@ class ManifestLoader(object):
                 #If the existing file doesn't exist just create one from scratch
                 pass
 
-        if not json_data:
+        manifest_file = None
+        if json_data:
+            try:
+                manifest_file = manifest.Manifest.from_json(tests_path, json_data)
+            except manifest.ManifestVersionMismatch:
+                pass
+        if manifest_file is None:
             manifest_file = manifest.Manifest(None, url_base)
-        else:
-            manifest_file = manifest.Manifest.from_json(tests_path, json_data)
 
         manifest_update.update(tests_path, url_base, manifest_file)
         manifest.write(manifest_file, manifest_path)
