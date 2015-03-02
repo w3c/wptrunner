@@ -48,7 +48,9 @@ class LocalServer(object):
 
     def start(self):
         self.logger.debug("Running %s" % " ".join(self.command))
-        self.proc = mozprocess.ProcessHandler(self.command, processOutputLine=self.on_output, env=self.environ)
+        self.proc = mozprocess.ProcessHandler(self.command,
+                                              processOutputLine=self.on_output,
+                                              env=self.environ)
         try:
             self.proc.run()
         except OSError as e:
@@ -141,6 +143,12 @@ class WiresLocalServer(LocalServer):
                 cmd_arg("connect-existing"),
                 cmd_arg("webdriver-port", str(self.port)),
                 cmd_arg("marionette-port", str(self.marionette_port))]
+
+    @property
+    def environ(self):
+        env = os.environ.copy()
+        env["RUST_LOG"] = "debug"
+        return env
 
 def wait_service(addr, timeout=60):
     """Waits until network service given as a tuple of (host, port) becomes
