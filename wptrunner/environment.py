@@ -20,12 +20,15 @@ serve = None
 sslutils = None
 
 
-hostnames = ["web-platform.test",
-             "www.web-platform.test",
-             "www1.web-platform.test",
-             "www2.web-platform.test",
-             "xn--n8j6ds53lwwkrqhv28a.web-platform.test",
-             "xn--lve-6lad.web-platform.test"]
+subdomains = ["",
+              "www",
+              "www1",
+              "www2",
+              "xn--n8j6ds53lwwkrqhv28a.web-platform.test",
+              "xn--lve-6lad.web-platform.test"]
+
+host = "web-platform.test"
+hostnames = ["%s.%s" % (item, host) if item else host for item in subdomains]
 
 
 def do_delayed_imports(logger, test_paths):
@@ -80,13 +83,12 @@ class TestEnvironmentError(Exception):
     pass
 
 
-class TestEnvironment(object):
+class BaseEnvironment(object):
     def __init__(self, test_paths, ssl_env, pause_after_test, debug_info, options):
         """Context manager that owns the test environment i.e. the http and
         websockets servers"""
         self.test_paths = test_paths
         self.ssl_env = ssl_env
-        self.server = None
         self.config = None
         self.external_config = None
         self.pause_after_test = pause_after_test
@@ -95,13 +97,33 @@ class TestEnvironment(object):
         self.options = options if options is not None else {}
 
         self.cache_manager = multiprocessing.Manager()
-        self.stash = serve.stash.StashServer()
-
 
     def __enter__(self):
+        self.cache_manager.__enter__()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.cache_manager.__exit__(exc_type, exc_val, exc_tb)
+
+    def ensure_started(self):
+        pass
+
+class RemoteServerEnvironment(BaseEnvironment):
+    def __init__(self, test_paths, ssl_env, pause_after_test, debug_info, options):
+        BaseEnvironment.__init__(self, test_paths, ssl_env, pause_after_test, debug_info, options)
+        assert not self.pause_after_test
+        self.external_config = options["external_config"]
+
+class LocalServerEnvironment(BaseEnvironment):
+    def __init__(self, *args, **kwargs):
+        BaseEnvironment.__init__(self, *args, **kwawrgs)
+        self.stash = serve.stash.StashServer()
+        self.routes = self.get_routes()
+
+    def __enter__(self):
+        BaseEnvironment.__enter__(self)
         self.stash.__enter__()
         self.ssl_env.__enter__()
-        self.cache_manager.__enter__()
         self.setup_server_logging()
         self.config = self.load_config()
         serve.set_computed_defaults(self.config)
@@ -112,6 +134,7 @@ class TestEnvironment(object):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        BaseEnvironment.__exit__(self)
         self.process_interrupts()
         for scheme, servers in self.servers.iteritems():
             for port, server in servers:

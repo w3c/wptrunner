@@ -59,6 +59,7 @@ class TestharnessResultConverter(object):
         assert result_url == test.url, ("Got results from %s, expected %s" %
                                       (result_url, test.url))
         harness_result = test.result_cls(self.harness_codes[status], message)
+
         return (harness_result,
                 [test.subtest_result_cls(name, self.test_codes[status], message, stack)
                  for name, status, message, stack in subtest_results])

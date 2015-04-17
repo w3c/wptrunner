@@ -111,11 +111,11 @@ def run_tests(config, test_paths, product, **kwargs):
         (check_args,
          browser_cls, get_browser_kwargs,
          executor_classes, get_executor_kwargs,
-         env_options) = products.load_product(config, product)
+         env_cls, env_options) = products.load_product(config, product)
 
         ssl_env = env.ssl_env(logger, **kwargs)
 
-        check_args(**kwargs)
+        check_args(kwargs)
 
         if "test_loader" in kwargs:
             run_info = wpttest.get_run_info(kwargs["run_info"], product, debug=None)
@@ -138,11 +138,11 @@ def run_tests(config, test_paths, product, **kwargs):
 
         kwargs["pause_after_test"] = get_pause_after_test(test_loader, **kwargs)
 
-        with env.TestEnvironment(test_paths,
-                                 ssl_env,
-                                 kwargs["pause_after_test"],
-                                 kwargs["debug_info"],
-                                 env_options) as test_environment:
+        with env_cls(test_paths,
+                     ssl_env,
+                     kwargs["pause_after_test"],
+                     kwargs["debug_info"],
+                     env_options) as test_environment:
             try:
                 test_environment.ensure_started()
             except env.TestEnvironmentError as e:

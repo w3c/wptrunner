@@ -8,6 +8,8 @@ from .base import NullBrowser, ExecutorBrowser, require_arg
 from ..executors import executor_kwargs as base_executor_kwargs
 from ..executors.executorservo import ServoTestharnessExecutor, ServoRefTestExecutor
 
+from ..environment import LocalServerEnvironment
+
 here = os.path.join(os.path.split(__file__)[0])
 
 __wptrunner__ = {"product": "servo",
@@ -15,12 +17,13 @@ __wptrunner__ = {"product": "servo",
                  "browser": "ServoBrowser",
                  "executor": {"testharness": "ServoTestharnessExecutor",
                               "reftest": "ServoRefTestExecutor"},
+                 "env": "LocalServerEnvironment",
                  "browser_kwargs": "browser_kwargs",
                  "executor_kwargs": "executor_kwargs",
                  "env_options": "env_options"}
 
 
-def check_args(**kwargs):
+def check_args(kwargs):
     require_arg(kwargs, "binary")
 
 

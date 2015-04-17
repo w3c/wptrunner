@@ -16,7 +16,7 @@ from mozcrash import mozcrash
 from .base import get_free_port, Browser, ExecutorBrowser, require_arg, cmd_arg, browser_command
 from ..executors import executor_kwargs as base_executor_kwargs
 from ..executors.executormarionette import MarionetteTestharnessExecutor, MarionetteRefTestExecutor
-from ..environment import hostnames
+from ..environment import hostnames, LocalServerEnvironment
 
 here = os.path.join(os.path.split(__file__)[0])
 
@@ -25,6 +25,7 @@ __wptrunner__ = {"product": "firefox",
                  "browser": "FirefoxBrowser",
                  "executor": {"testharness": "MarionetteTestharnessExecutor",
                               "reftest": "MarionetteRefTestExecutor"},
+                 "env": "LocalServerEnvironment",
                  "browser_kwargs": "browser_kwargs",
                  "executor_kwargs": "executor_kwargs",
                  "env_options": "env_options"}

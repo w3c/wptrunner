@@ -164,6 +164,10 @@ def create_parser(product_choices=None):
                              default=[], action="append", dest="user_stylesheets",
                              help="Inject a user CSS stylesheet into every test.")
 
+    sauce_group = parser.add_argument_group("Sauce Labs-specific")
+    sauce_group.add_argument("--sauce-config", dest="sauce_config_path",
+                             help="Path to ini file containing sauce labs config information")
+
     parser.add_argument("test_list", nargs="*",
                         help="List of URLs for tests to run, or paths including tests to run. "
                              "(equivalent to --include)")

@@ -12,6 +12,7 @@ a dictionary with the fields
 "executor": Dictionary with keys as supported test types and values as the name
             of the Executor implemantation that will be used to run that test
             type.
+"env": String indicating the class of the test environment used with that product.
 "browser_kwargs": String naming function that takes product, binary,
                   prefs_root and the wptrunner.run_tests kwargs dict as arguments
                   and returns a dictionary of kwargs to use when creating the
@@ -29,5 +30,7 @@ module global scope.
 product_list = ["b2g",
                 "chrome",
                 "firefox",
+                "sauce",
                 "servo",
-                "servodriver"]
+                "servodriver",
+                ]
