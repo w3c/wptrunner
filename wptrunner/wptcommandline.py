@@ -157,6 +157,10 @@ def create_parser(product_choices=None):
     b2g_group.add_argument("--b2g-no-backup", action="store_true", default=False,
                            help="Don't backup device before testrun with --product=b2g")
 
+    sauce_group = parser.add_argument_group("Sauce Labs-specific")
+    sauce_group.add_argument("--sauce-config", dest="sauce_config_path",
+                             help="Path to ini file containing sauce labs config information")
+
     parser.add_argument("test_list", nargs="*",
                         help="List of URLs for tests to run, or paths including tests to run. "
                              "(equivalent to --include)")

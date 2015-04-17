@@ -196,6 +196,7 @@ class SeleniumTestharnessExecutor(TestharnessExecutor):
         return (test.result_cls(*data), [])
 
     def do_testharness(self, webdriver, url, timeout):
+        self.logger.debug("Loading test at %s" % url)
         return webdriver.execute_async_script(
             self.script % {"abs_url": url,
                            "url": strip_server(url),

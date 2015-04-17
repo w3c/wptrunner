@@ -55,8 +55,9 @@ class TestharnessResultConverter(object):
 
     def __call__(self, test, result):
         """Convert a JSON result into a (TestResult, [SubtestResult]) tuple"""
-        assert result["test"] == test.url, ("Got results from %s, expected %s" %
-                                            (result["test"], test.url))
+        if "test" in result:
+            assert result["test"] == test.url, ("Got results from %s, expected %s" %
+                                                (result["test"], test.url))
         harness_result = test.result_cls(self.harness_codes[result["status"]], result["message"])
         return (harness_result,
                 [test.subtest_result_cls(subtest["name"], self.test_codes[subtest["status"]],

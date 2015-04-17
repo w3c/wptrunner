@@ -20,7 +20,7 @@ from mozprofile import FirefoxProfile, Preferences
 from .base import get_free_port, BrowserError, Browser, ExecutorBrowser
 from ..executors.executormarionette import MarionetteTestharnessExecutor
 from ..hosts import HostsFile, HostsLine
-from ..environment import hostnames
+from ..environment import hostnames, LocalServerEnvironment
 
 here = os.path.split(__file__)[0]
 
@@ -28,12 +28,13 @@ __wptrunner__ = {"product": "b2g",
                  "check_args": "check_args",
                  "browser": "B2GBrowser",
                  "executor": {"testharness": "B2GMarionetteTestharnessExecutor"},
+                 "env": "LocalServerEnvironment",
                  "browser_kwargs": "browser_kwargs",
                  "executor_kwargs": "executor_kwargs",
                  "env_options": "env_options"}
 
 
-def check_args(**kwargs):
+def check_args(kwargs):
     pass
 
 
