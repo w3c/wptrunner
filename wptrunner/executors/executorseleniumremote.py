@@ -38,6 +38,10 @@ class SeleniumRemoteProtocol(SeleniumProtocol):
     def after_connect(self):
         pass
 
+    def is_alive(self):
+        # Optimisation to remove a RTT; if we actually don't have a connection
+        # that will be detected when we try to set the url
+        return True
 
 class SeleniumRemoteTestharnessExecutor(SeleniumTestharnessExecutor):
     def __init__(self, browser, server_config, timeout_multiplier=1,
@@ -46,22 +50,15 @@ class SeleniumRemoteTestharnessExecutor(SeleniumTestharnessExecutor):
                                              close_after_done=True, capabilities=None,
                                              debug_info=None)
         self.protocol = SeleniumRemoteProtocol(self, browser, capabilities)
-        self.script = None
+        with open(os.path.join(here, "testharness_seleniumremote.js")) as f:
+            self.script = f.read()
 
     def on_protocol_change(self, new_protocol):
         pass
 
     def do_testharness(self, webdriver, url, timeout):
-        #TODO don't reset this timeout all the time
-        webdriver.implicitly_wait(timeout)
         webdriver.get(url)
-        #TODO Consider just using one remote script and mutation observers here
-        try:
-            webdriver.find_element_by_id("__testharness__results__")
-        except exceptions.NoSuchElement:
-            raise exceptions.TimeoutException
-        text = webdriver.execute_script("return document.getElementById('__testharness__results__').textContent")
-        self.logger.debug(text)
+        text = webdriver.execute_async_script(self.script)
         result = json.loads(text)
         del result["test"]
         return result

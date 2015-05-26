@@ -78,7 +78,8 @@ def get_capabilities(sauce_config):
 
     return capabilities
 
-def executor_kwargs(test_type, server_config, cache_manager, **kwargs):
+def executor_kwargs(test_type, server_config, cache_manager, run_info_data,
+                    **kwargs):
     executor_kwargs = base_executor_kwargs(test_type, server_config,
                                            cache_manager, **kwargs)
     executor_kwargs["capabilities"] = get_capabilities(kwargs["sauce_config"])
