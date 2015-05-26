@@ -154,6 +154,9 @@ class TestExecutor(object):
     def test_url(self, test):
         return urlparse.urljoin(self.server_url(test.environment["protocol"]), test.url)
 
+    def test_timeout(self, test):
+        return test.timeout * self.timeout_multiplier if self.debug_info is None else None
+
     @abstractmethod
     def do_test(self, test):
         """Test-type and protocol specific implementation of running a
@@ -289,6 +292,7 @@ class Protocol(object):
     def __init__(self, executor, browser):
         self.executor = executor
         self.browser = browser
+        self.timeout = None
 
     @property
     def logger(self):
@@ -302,3 +306,6 @@ class Protocol(object):
 
     def wait(self):
         pass
+
+    def set_timeout(self, timeout):
+        self.timeout = timeout

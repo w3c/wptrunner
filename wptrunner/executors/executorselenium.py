@@ -104,6 +104,23 @@ class SeleniumProtocol(Protocol):
         self.webdriver.execute_script("document.title = '%s'" %
                                       threading.current_thread().name.replace("'", '"'))
 
+    def run(self, func, url, timeout):
+        try:
+            self.set_timeout((timeout + extra_timeout))
+        except exceptions.ErrorInResponseException:
+            self.logger.error("Lost webdriver connection")
+            return False, Stop
+
+        return SeleniumRun(func,
+                           self.webdriver,
+                           url,
+                           timeout).run()
+
+    def set_timeout(self, timeout):
+        if timeout != self.timeout:
+            self.webdriver.set_script_timeout(timeout * 1000)
+            self.timeout = timeout
+
     def wait(self):
         while True:
             try:
@@ -128,18 +145,10 @@ class SeleniumRun(object):
         self.result_flag = threading.Event()
 
     def run(self):
-        timeout = self.timeout
-
-        try:
-            self.webdriver.set_script_timeout((timeout + extra_timeout) * 1000)
-        except exceptions.ErrorInResponseException:
-            self.logger.error("Lost webdriver connection")
-            return Stop
-
         executor = threading.Thread(target=self._run)
         executor.start()
 
-        flag = self.result_flag.wait(timeout + 2 * extra_timeout)
+        flag = self.result_flag.wait(self.timeout + extra_timeout)
         if self.result is None:
             assert not flag
             self.result = False, ("EXTERNAL-TIMEOUT", None)
@@ -183,15 +192,15 @@ class SeleniumTestharnessExecutor(TestharnessExecutor):
         self.protocol.load_runner(new_protocol)
 
     def do_test(self, test):
-        url = self.test_url(test)
-
-        success, data = SeleniumRun(self.do_testharness,
-                                    self.protocol.webdriver,
-                                    url,
-                                    test.timeout * self.timeout_multiplier).run()
+        success, data = self.protocol.run(self.do_testharness,
+                                          self.test_url(test),
+                                          self.test_timeout(test))
 
         if success:
             return self.convert_result(test, data)
+
+        if data is Stop:
+            return Stop
 
         return (test.result_cls(*data), [])
 
@@ -249,10 +258,9 @@ class SeleniumRefTestExecutor(RefTestExecutor):
         return self.convert_result(test, result)
 
     def screenshot(self, test):
-        return SeleniumRun(self._screenshot,
-                           self.protocol.webdriver,
-                           self.test_url(test),
-                           test.timeout).run()
+        return self.protocol.run(self._screenshot,
+                                 self.test_url(test),
+                                 self.test_timeout(test)).run()
 
     def _screenshot(self, webdriver, url, timeout):
         webdriver.get(url)
