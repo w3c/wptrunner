@@ -103,7 +103,7 @@ class ChromedriverLocalServer(LocalServer):
         LocalServer.__init__(self, logger, binary, port=port, endpoint=endpoint)
         # TODO: verbose logging
         self.cmd = [self.binary,
-                    cmd_arg("port", str(self.port)) if self.port else "",
+                    "--port", str(self.port) if self.port else "",
                     cmd_arg("url-base", self.endpoint) if self.endpoint else ""]
 
     def start(self):
@@ -113,6 +113,24 @@ class ChromedriverLocalServer(LocalServer):
     def stop(self):
         LocalServer.stop(self)
         self.logger.info("chromedriver server stopped listening")
+
+
+class EdgeLocalServer(LocalServer):
+    default_endpoint = ""
+
+    def __init__(self, logger, binary, port=None, endpoint=None):
+        LocalServer.__init__(self, logger, binary, port=port, endpoint=endpoint)
+        self.url = "http://localhost:%i%s" % (self.port, self.endpoint)
+        # TODO: verbose logging
+        self.cmd = [self.binary, "--port=%s" % str(self.port)]
+        
+    def start(self):
+        self.logger.debug("Starting local WebDriver server")
+        LocalServer.start(self)
+
+    def stop(self):
+        LocalServer.stop(self)
+        self.logger.info("WebDriver server stopped listening")
 
 
 def wait_service(addr, timeout=15):

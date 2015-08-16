@@ -115,7 +115,7 @@ def run_tests(config, test_paths, product, **kwargs):
 
         ssl_env = env.ssl_env(logger, **kwargs)
 
-        check_args(kwargs)
+        check_args(**kwargs)
 
         if "test_loader" in kwargs:
             run_info = wpttest.get_run_info(kwargs["run_info"], product, debug=None)

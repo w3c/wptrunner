@@ -116,7 +116,7 @@ class RemoteServerEnvironment(BaseEnvironment):
 
 class LocalServerEnvironment(BaseEnvironment):
     def __init__(self, *args, **kwargs):
-        BaseEnvironment.__init__(self, *args, **kwawrgs)
+        BaseEnvironment.__init__(self, *args, **kwargs)
         self.stash = serve.stash.StashServer()
         self.routes = self.get_routes()
 
@@ -134,7 +134,7 @@ class LocalServerEnvironment(BaseEnvironment):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        BaseEnvironment.__exit__(self)
+        BaseEnvironment.__exit__(self, exc_type, exc_val, exc_tb)
         self.process_interrupts()
         for scheme, servers in self.servers.iteritems():
             for port, server in servers:
