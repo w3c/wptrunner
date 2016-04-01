@@ -36,18 +36,24 @@ format. This manifest is used directly to determine which tests exist. Local
 metadata files are used to store the expected test results.
 """
 
+
 def setup_logging(*args, **kwargs):
     global logger
     logger = wptlogging.setup(*args, **kwargs)
 
-def get_loader(test_paths, product, ssl_env, debug=None, run_info_extras=None, **kwargs):
+
+def get_loader(ssl_env, debug=None, run_info_extras=None, **kwargs):
+    product = kwargs["product"]
+    test_paths = kwargs["test_paths"]
+
     if run_info_extras is None:
         run_info_extras = {}
 
     run_info = wpttest.get_run_info(kwargs["run_info"], product, debug=debug,
                                     extras=run_info_extras)
 
-    test_manifests = testloader.ManifestLoader(test_paths, force_manifest_update=kwargs["manifest_update"]).load()
+    test_manifests = testloader.ManifestLoader(
+        test_paths, force_manifest_update=kwargs["manifest_update"]).load()
 
     manifest_filters = []
     meta_filters = []
@@ -71,27 +77,62 @@ def get_loader(test_paths, product, ssl_env, debug=None, run_info_extras=None, *
                                         include_https=ssl_env.ssl_enabled)
     return run_info, test_loader
 
-def list_test_groups(test_paths, product, **kwargs):
-    env.do_delayed_imports(logger, test_paths)
 
-    ssl_env = env.ssl_env(logger, **kwargs)
+def entrypoint(f):
+    def inner(**kwargs):
+        config = kwargs["config"]
+        test_paths = kwargs["test_paths"]
+        product = kwargs["product"]
+        run_info = kwargs["run_info"]
 
-    run_info, test_loader = get_loader(test_paths, product, ssl_env,
-                                       **kwargs)
+        with wptlogging.CaptureIO(logger, not kwargs["no_capture_stdio"]):
+            env.do_delayed_imports(logger, test_paths)
 
+            ssl_env = env.ssl_env(logger, **kwargs)
+
+            (check_args,
+             browser_cls, get_browser_kwargs,
+             executor_classes, get_executor_kwargs,
+             env_options, run_info_extras) = products.load_product(config, product)
+
+            check_args(**kwargs)
+
+            if "test_loader" in kwargs:
+                run_info = wpttest.get_run_info(run_info, product, debug=None,
+                                                extras=run_info_extras(**kwargs))
+                test_loader = kwargs["test_loader"]
+            else:
+                run_info, test_loader = get_loader(ssl_env,
+                                                   run_info_extras=run_info_extras(**kwargs),
+                                                   **kwargs)
+            kwargs["run_info"] = run_info
+
+        return f(browser_cls, get_browser_kwargs, executor_classes, get_executor_kwargs,
+                 env_options, ssl_env, test_loader, **kwargs)
+
+    inner.__name__ = f.__name__
+    inner.__doc__ = f.__doc__
+    return inner
+
+
+@entrypoint
+def list_tests(browser_cls, get_browser_kwargs, executor_classes, get_executor_kwargs,
+               env_options, ssl_env, test_loader, **kwargs):
+    for test_path, test_type, test in sorted(test_loader.iter_tests()):
+        print test.id
+
+
+@entrypoint
+def list_test_groups(browser_cls, get_browser_kwargs, executor_classes, get_executor_kwargs,
+                     env_options, ssl_env, test_loader, **kwargs):
     for item in sorted(test_loader.groups(kwargs["test_types"])):
         print item
 
 
-def list_disabled(test_paths, product, **kwargs):
-    env.do_delayed_imports(logger, test_paths)
-
+@entrypoint
+def list_disabled(browser_cls, get_browser_kwargs, executor_classes, get_executor_kwargs,
+                  env_options, ssl_env, test_loader, **kwargs):
     rv = []
-
-    ssl_env = env.ssl_env(logger, **kwargs)
-
-    run_info, test_loader = get_loader(test_paths, product, ssl_env,
-                                       **kwargs)
 
     for test_type, tests in test_loader.disabled_tests.iteritems():
         for test in tests:
@@ -110,117 +151,106 @@ def get_pause_after_test(test_loader, **kwargs):
     return kwargs["pause_after_test"]
 
 
-def run_tests(config, test_paths, product, **kwargs):
-    with wptlogging.CaptureIO(logger, not kwargs["no_capture_stdio"]):
-        env.do_delayed_imports(logger, test_paths)
+@entrypoint
+def run_tests(browser_cls, get_browser_kwargs, executor_classes, get_executor_kwargs,
+              env_options, ssl_env, test_loader, **kwargs):
 
-        (check_args,
-         browser_cls, get_browser_kwargs,
-         executor_classes, get_executor_kwargs,
-         env_options, run_info_extras) = products.load_product(config, product)
+    if kwargs["run_by_dir"] is False:
+        test_source_cls = testloader.SingleTestSource
+        test_source_kwargs = {}
+    else:
+        # A value of None indicates infinite depth
+        test_source_cls = testloader.PathGroupedSource
+        test_source_kwargs = {"depth": kwargs["run_by_dir"]}
 
-        ssl_env = env.ssl_env(logger, **kwargs)
+    logger.info("Using %i client processes" % kwargs["processes"])
 
-        check_args(**kwargs)
+    unexpected_total = 0
 
-        if "test_loader" in kwargs:
-            run_info = wpttest.get_run_info(kwargs["run_info"], product, debug=None,
-                                            extras=run_info_extras(**kwargs))
-            test_loader = kwargs["test_loader"]
-        else:
-            run_info, test_loader = get_loader(test_paths,
-                                               product,
-                                               ssl_env,
-                                               run_info_extras=run_info_extras(**kwargs),
-                                               **kwargs)
+    kwargs["pause_after_test"] = get_pause_after_test(test_loader, **kwargs)
 
-        if kwargs["run_by_dir"] is False:
-            test_source_cls = testloader.SingleTestSource
-            test_source_kwargs = {}
-        else:
-            # A value of None indicates infinite depth
-            test_source_cls = testloader.PathGroupedSource
-            test_source_kwargs = {"depth": kwargs["run_by_dir"]}
+    with env.TestEnvironment(kwargs["test_paths"],
+                             ssl_env,
+                             kwargs["pause_after_test"],
+                             kwargs["debug_info"],
+                             env_options) as test_environment:
+        try:
+            test_environment.ensure_started()
+        except env.TestEnvironmentError as e:
+            logger.critical("Error starting test environment: %s" % e.message)
+            raise
 
-        logger.info("Using %i client processes" % kwargs["processes"])
+        browser_kwargs = get_browser_kwargs(ssl_env=ssl_env, **kwargs)
 
-        unexpected_total = 0
+        repeat = kwargs["repeat"]
+        repeat_count = 0
+        repeat_until_unexpected = kwargs["repeat_until_unexpected"]
 
-        kwargs["pause_after_test"] = get_pause_after_test(test_loader, **kwargs)
+        while repeat_count < repeat or repeat_until_unexpected:
+            repeat_count += 1
+            if repeat_until_unexpected:
+                logger.info("Repetition %i" % (repeat_count))
+            elif repeat > 1:
+                logger.info("Repetition %i / %i" % (repeat_count, repeat))
 
-        with env.TestEnvironment(test_paths,
-                                 ssl_env,
-                                 kwargs["pause_after_test"],
-                                 kwargs["debug_info"],
-                                 env_options) as test_environment:
-            try:
-                test_environment.ensure_started()
-            except env.TestEnvironmentError as e:
-                logger.critical("Error starting test environment: %s" % e.message)
-                raise
+            unexpected_count = 0
+            logger.suite_start(test_loader.test_ids, kwargs["run_info"])
+            for test_type in kwargs["test_types"]:
+                logger.info("Running %s tests" % test_type)
 
-            browser_kwargs = get_browser_kwargs(ssl_env=ssl_env, **kwargs)
+                for test in test_loader.disabled_tests[test_type]:
+                    logger.test_start(test.id)
+                    logger.test_end(test.id, status="SKIP")
 
-            repeat = kwargs["repeat"]
-            repeat_count = 0
-            repeat_until_unexpected = kwargs["repeat_until_unexpected"]
+                executor_cls = executor_classes.get(test_type)
+                executor_kwargs = get_executor_kwargs(test_type,
+                                                      test_environment.external_config,
+                                                      test_environment.cache_manager,
+                                                      kwargs["run_info"],
+                                                      **kwargs)
 
-            while repeat_count < repeat or repeat_until_unexpected:
-                repeat_count += 1
-                if repeat_until_unexpected:
-                    logger.info("Repetition %i" % (repeat_count))
-                elif repeat > 1:
-                    logger.info("Repetition %i / %i" % (repeat_count, repeat))
-
-                unexpected_count = 0
-                logger.suite_start(test_loader.test_ids, run_info)
-                for test_type in kwargs["test_types"]:
-                    logger.info("Running %s tests" % test_type)
-
-                    for test in test_loader.disabled_tests[test_type]:
-                        logger.test_start(test.id)
-                        logger.test_end(test.id, status="SKIP")
-
-                    executor_cls = executor_classes.get(test_type)
-                    executor_kwargs = get_executor_kwargs(test_type,
-                                                          test_environment.external_config,
-                                                          test_environment.cache_manager,
-                                                          run_info,
-                                                          **kwargs)
-
-                    if executor_cls is None:
-                        logger.error("Unsupported test type %s for product %s" %
-                                     (test_type, product))
-                        continue
+                if executor_cls is None:
+                    logger.error("Unsupported test type %s for product %s" %
+                                 (test_type, product))
+                    continue
 
 
-                    with ManagerGroup("web-platform-tests",
-                                      kwargs["processes"],
-                                      test_source_cls,
-                                      test_source_kwargs,
-                                      browser_cls,
-                                      browser_kwargs,
-                                      executor_cls,
-                                      executor_kwargs,
-                                      kwargs["pause_after_test"],
-                                      kwargs["pause_on_unexpected"],
-                                      kwargs["debug_info"]) as manager_group:
-                        try:
-                            manager_group.run(test_type, test_loader.tests)
-                        except KeyboardInterrupt:
-                            logger.critical("Main thread got signal")
-                            manager_group.stop()
-                            raise
-                    unexpected_count += manager_group.unexpected_count()
+                with ManagerGroup("web-platform-tests",
+                                  kwargs["processes"],
+                                  test_source_cls,
+                                  test_source_kwargs,
+                                  browser_cls,
+                                  browser_kwargs,
+                                  executor_cls,
+                                  executor_kwargs,
+                                  kwargs["pause_after_test"],
+                                  kwargs["pause_on_unexpected"],
+                                  kwargs["debug_info"]) as manager_group:
+                    try:
+                        manager_group.run(test_type, test_loader.tests)
+                    except KeyboardInterrupt:
+                        logger.critical("Main thread got signal")
+                        manager_group.stop()
+                        raise
+                unexpected_count += manager_group.unexpected_count()
 
-                unexpected_total += unexpected_count
-                logger.info("Got %i unexpected results" % unexpected_count)
-                if repeat_until_unexpected and unexpected_total > 0:
-                    break
-                logger.suite_end()
+            unexpected_total += unexpected_count
+            logger.info("Got %i unexpected results" % unexpected_count)
+            if repeat_until_unexpected and unexpected_total > 0:
+                break
+            logger.suite_end()
 
     return unexpected_total == 0
 
+def run_command(**kwargs):
+    if kwargs["list"]:
+        list_tests(**kwargs)
+    elif kwargs["list_test_groups"]:
+        list_test_groups(**kwargs)
+    elif kwargs["list_disabled"]:
+        list_disabled(**kwargs)
+    else:
+        return not run_tests(**kwargs)
 
 def main():
     """Main entry point when calling from the command line"""
@@ -232,12 +262,7 @@ def main():
 
         setup_logging(kwargs, {"raw": sys.stdout})
 
-        if kwargs["list_test_groups"]:
-            list_test_groups(**kwargs)
-        elif kwargs["list_disabled"]:
-            list_disabled(**kwargs)
-        else:
-            return not run_tests(**kwargs)
+        return run_command(**kwargs)
     except Exception:
         if kwargs["pdb"]:
             import pdb, traceback

@@ -87,6 +87,9 @@ def create_parser(product_choices=None):
     parser.add_argument("--list-disabled", action="store_true",
                         default=False,
                         help="List the tests that are disabled on the current platform")
+    parser.add_argument("--list", action="store_true",
+                        default=False,
+                        help="List all tests that would run")
 
     build_type = parser.add_mutually_exclusive_group()
     build_type.add_argument("--debug-build", dest="debug", action="store_true",
