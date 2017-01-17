@@ -463,11 +463,11 @@ class TestRunnerManager(threading.Thread):
         if self.test_runner_proc is None:
             return
         try:
-            self.browser.stop()
-            self.browser_started = False
             if self.test_runner_proc.is_alive():
                 self.send_message("stop")
                 self.ensure_runner_stopped()
+            self.browser.stop()
+            self.browser_started = False
         finally:
             self.cleanup()
 
